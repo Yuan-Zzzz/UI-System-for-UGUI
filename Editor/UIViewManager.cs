@@ -7,7 +7,7 @@ public class UIViewManager : EditorWindow
 {
     private List<GameObject> _prefabList = new List<GameObject>();
     private Vector2 _scrollPos;
-
+    private Dictionary<Transform, bool> _foldouts = new Dictionary<Transform, bool>();
     [MenuItem("Framework/UI/UIViewManager")]
     private static void OpenUIViewManager()
     {
@@ -19,11 +19,6 @@ public class UIViewManager : EditorWindow
         _scrollPos = EditorGUILayout.BeginScrollView(_scrollPos);
 
         List<GameObject> toRemove = new List<GameObject>();
-        //生成一个创建新的UI面板按钮，点击按钮后弹出一个对话框 对话框有确认和取消两个按钮
-        //在对话框中有一个输入框，输入UI面板的名字，点击确认后在PanelPrefab目录下创建一个新的UI面板预制体，并添加rectTransform组件和UIViewController脚本，同时生成对应的UIView脚本
-        //并将该窗口作为UIViewManager窗口的子窗口打开,UIViewManager将不能进行其他操作
-        //如果输入框为空则弹出警告，不进行任何操作
-        //如果已存在同名UI面板则弹出警告，不进行任何操作
 
         if (GUILayout.Button("创建新的UI面板"))
         {
@@ -38,8 +33,7 @@ public class UIViewManager : EditorWindow
             EditorGUILayout.ObjectField(prefab, typeof(GameObject), false);
             GUI.enabled = true;
 
-            //如果没有创建对应的UI脚本则显示警告
-            //提示：使用HelpBox
+            
             if (!AssetDatabase.LoadAssetAtPath(UIConfig.UIScriptPath + prefab.name + ".cs", typeof(Object)))
             {
                 GUI.color = Color.white;
@@ -85,6 +79,10 @@ public class UIViewManager : EditorWindow
 
             GUI.color = Color.white;
             GUILayout.EndHorizontal();
+            
+            //使用Foldout显示一个列表(类似Hierarchy窗口)，将子物体按照树形结构排列出来，如果子物体有子物体，也会以树形结构排列出来
+            DrawChild(prefab.transform);
+            
         }
 
         foreach (var prefab in toRemove)
@@ -94,7 +92,32 @@ public class UIViewManager : EditorWindow
 
         EditorGUILayout.EndScrollView();
     }
+private void DrawChild(Transform child)
+{
+    if (child.childCount > 0)
+    {
+        if (!_foldouts.ContainsKey(child))
+        {
+            _foldouts[child] = false;
+        }
 
+        _foldouts[child] = EditorGUILayout.Foldout(_foldouts[child], child.name);
+
+        if (_foldouts[child])
+        {
+            EditorGUI.indentLevel++;
+            for (int i = 0; i < child.childCount; i++)
+            {
+                DrawChild(child.GetChild(i));
+            }
+            EditorGUI.indentLevel--;
+        }
+    }
+    else
+    {
+        EditorGUILayout.LabelField(child.name);
+    }
+}
     private void OnEnable()
     {
         _prefabList.Clear();
