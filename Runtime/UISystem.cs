@@ -10,24 +10,21 @@ using Object = UnityEngine.Object;
 public interface IUISystem
 {
     UIView<TUIData> OpenPanel<T,TUIData>(TUIData uiData, UILayer uiLayer = UILayer.NormalLayer) where T : UIView, new()  where TUIData : class, IUIData;
-    //UIView OpenViewInScene<T>() where T : UIView, new();
     UIView<TUIData> OpenViewInScene<T,TUIData>(TUIData uiData) where T : UIView, new() where TUIData : class, IUIData;
     void CloseInSceneLayer(UIView uiView);
     UIView IsContainInSceneLayer<T>();
-    void CloseTopPanel();
+    void CloseTopPanel(UILayer uiLayer);
     void CloseAll();
     void Reset();
-    UIView GetTopPanel();
+    UIView GetTopPanel(UILayer layer);
     Canvas GetOrAddPanelCanvas();
-    T GetOrAddComponent<T>() where T : Component;
-    T GetOrAddComponentInChildren<T>(string childName) where T : Component;
 }
 
 public class UISystem : IUISystem
 {
     private Dictionary<string, GameObject> _panelPrefabDict = new Dictionary<string, GameObject>();
     private List<UIView> _sceneLayerPanelList = new List<UIView>();
-    private Stack<UIView> _normalLayerPanelsStack = new Stack<UIView>();
+    private Dictionary<UILayer,Stack<UIView>> _panelStack  = new Dictionary<UILayer, Stack<UIView>>();
     private Canvas _activeCanvas; //面板挂载的Canvas
 
     #region 通过单例调用 后续可改为其他
@@ -73,7 +70,12 @@ public class UISystem : IUISystem
             Debug.LogError("场景中的UI请使用OpenViewInScene方法");
         }
         T newPanel = CreateAndInitializePanel<T,TUIData>(uiData, uiLayer);
-        _normalLayerPanelsStack.Push(newPanel);
+        
+        if (!_panelStack.ContainsKey(uiLayer))
+        {
+            _panelStack.Add(uiLayer,new Stack<UIView>());
+        }
+        _panelStack[uiLayer].Push(newPanel);
         return newPanel as UIView<TUIData>;
     }
     
@@ -121,24 +123,25 @@ public class UISystem : IUISystem
         return null;
     }
 
-    public void CloseTopPanel()
+    public void CloseTopPanel(UILayer uiLayer)
     {
-        if (_normalLayerPanelsStack.Count == 0) return;
-        var topPanel = GetTopPanel();
+        if (_panelStack[uiLayer].Count == 0) return;
+        var topPanel = GetTopPanel(uiLayer);
         Object.Destroy(topPanel.PanelObject);
         topPanel.OnPause();
         topPanel.OnClose();
-        _normalLayerPanelsStack.Pop();
-        if (_normalLayerPanelsStack.Count == 0) return;
-        GetTopPanel().PanelObject.GetComponent<UIViewController>().onUpdate += GetTopPanel().OnUpdate;
-        GetTopPanel().OnResume();
+        _panelStack[uiLayer].Pop();
+        if (_panelStack[uiLayer].Count == 0) return;
+        GetTopPanel(uiLayer).PanelObject.GetComponent<UIViewController>().onUpdate += GetTopPanel(uiLayer).OnUpdate;
+        GetTopPanel(uiLayer).OnResume();
     }
 
     public void CloseAll()
     {
-        for (int i = 0; i < _normalLayerPanelsStack.Count; i++)
+        foreach (var layer in _panelStack.Keys)
         {
-            CloseTopPanel();
+            CloseTopPanel(layer);
+            
         }
     }
 
@@ -160,21 +163,21 @@ public class UISystem : IUISystem
         _activeCanvas = null;
     }
 
-    public UIView GetTopPanel()
+    public UIView GetTopPanel(UILayer layer)
     {
-        if (_normalLayerPanelsStack.Count > 0)
-            return _normalLayerPanelsStack.Peek();
+        if (_panelStack[layer].Count > 0)
+            return _panelStack[layer].Peek();
         Debug.LogError("UI栈中无任何面板");
         return null;
     }
 
     public Canvas GetOrAddPanelCanvas()
     {
-        _activeCanvas = GameObject.Find("Overlay").GetComponent<Canvas>();
+        _activeCanvas = GameObject.Find("OverlayCanvas").GetComponent<Canvas>();
         if (_activeCanvas != null)
             return _activeCanvas;
 
-        var panelCanvasGameObject = new GameObject("PanelCanvas");
+        var panelCanvasGameObject = new GameObject("OverlayCanvas");
 
         var canvas = panelCanvasGameObject.AddComponent<Canvas>();
         canvas.renderMode = RenderMode.ScreenSpaceOverlay;
@@ -200,13 +203,13 @@ public class UISystem : IUISystem
         return canvas;
     }
 
-    public T GetOrAddComponent<T>() where T : Component
-    {
-        return GetTopPanel().PanelObject.GetComponent<T>();
-    }
-
-    public T GetOrAddComponentInChildren<T>(string childName) where T : Component
-    {
-        return GetTopPanel().PanelObject.GetComponentsInChildren<T>().FirstOrDefault(child => child.name == childName);
-    }
+    // public T GetOrAddComponent<T>() where T : Component
+    // {
+    //     return GetTopPanel().PanelObject.GetComponent<T>();
+    // }
+    //
+    // public T GetOrAddComponentInChildren<T>(string childName) where T : Component
+    // {
+    //     return GetTopPanel().PanelObject.GetComponentsInChildren<T>().FirstOrDefault(child => child.name == childName);
+    // }
 }
