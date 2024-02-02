@@ -8,6 +8,7 @@ public class UIViewManager : EditorWindow
     private List<GameObject> _prefabList = new List<GameObject>();
     private Vector2 _scrollPos;
     private Dictionary<Transform, bool> _foldouts = new Dictionary<Transform, bool>();
+    private GameObject _selectedObject;
     [MenuItem("Framework/UI/UIViewManager")]
     private static void OpenUIViewManager()
     {
@@ -16,23 +17,38 @@ public class UIViewManager : EditorWindow
 
     private void OnGUI()
     {
-        _scrollPos = EditorGUILayout.BeginScrollView(_scrollPos);
-
+      
         List<GameObject> toRemove = new List<GameObject>();
 
+        GUILayout.BeginHorizontal();
+        
+        GUILayout.BeginVertical("UI面板列表", "window",GUILayout.Width(500));
+        _scrollPos = EditorGUILayout.BeginScrollView(_scrollPos);
         if (GUILayout.Button("创建新的UI面板"))
         {
             UIViewCreateWindow.OpenUIViewCreateWindow();
         }
-
+        
         foreach (var prefab in _prefabList)
         {
-            GUILayout.BeginHorizontal();
+            if(_selectedObject == prefab)
+            {
+                GUI.color = Color.cyan;
+            }
+            else
+            {
+                GUI.color = Color.white;
+            }
+            GUILayout.BeginHorizontal("frameBox");
+            //当前行被点击选中时 该行的样式变为蓝色
+            if (GUILayout.Button(prefab.name, "Label"))
+            {
+                _selectedObject = prefab;
+            }
             //让下面这一个ObjectField无法编辑
             GUI.enabled = false;
             EditorGUILayout.ObjectField(prefab, typeof(GameObject), false);
             GUI.enabled = true;
-
             
             if (!AssetDatabase.LoadAssetAtPath(UIConfig.UIScriptPath + prefab.name + ".cs", typeof(Object)))
             {
@@ -80,17 +96,28 @@ public class UIViewManager : EditorWindow
             GUI.color = Color.white;
             GUILayout.EndHorizontal();
             
-            //使用Foldout显示一个列表(类似Hierarchy窗口)，将子物体按照树形结构排列出来，如果子物体有子物体，也会以树形结构排列出来
-            DrawChild(prefab.transform);
+           
+            
+            
+            
             
         }
-
+        EditorGUILayout.EndScrollView();
+        GUILayout.EndVertical();
+        GUILayout.BeginVertical("控件列表", "window");
+        //使用Foldout显示一个列表(类似Hierarchy窗口)，将子物体按照树形结构排列出来，如果子物体有子物体，也会以树形结构排列出来
+        if(_selectedObject!=null){
+            DrawChild(_selectedObject.transform);
+        }
+        GUILayout.EndVertical();
         foreach (var prefab in toRemove)
         {
             _prefabList.Remove(prefab);
         }
 
-        EditorGUILayout.EndScrollView();
+        
+        //GUILayout.EndVertical();
+        GUILayout.EndHorizontal();
     }
 private void DrawChild(Transform child)
 {
