@@ -1,5 +1,6 @@
 ﻿using System.Collections.Generic;
 using System.IO;
+using System.Linq;
 using UnityEditor;
 using UnityEngine;
 
@@ -9,6 +10,8 @@ public class UIViewManager : EditorWindow
     private Vector2 _scrollPos;
     private Dictionary<Transform, bool> _foldouts = new Dictionary<Transform, bool>();
     private GameObject _selectedObject;
+    private List<GameObject> _prefabToBind = new List<GameObject>();
+    private Dictionary<GameObject, int> _selectedComponentIndices = new Dictionary<GameObject, int>();
     [MenuItem("Framework/UI/UIViewManager")]
     private static void OpenUIViewManager()
     {
@@ -17,21 +20,21 @@ public class UIViewManager : EditorWindow
 
     private void OnGUI()
     {
-      
         List<GameObject> toRemove = new List<GameObject>();
 
         GUILayout.BeginHorizontal();
-        
-        GUILayout.BeginVertical("UI面板列表", "window",GUILayout.Width(500));
+
+        GUILayout.BeginVertical("UI面板列表", "window", GUILayout.MinWidth(400), GUILayout.MaxWidth(500));
+
         _scrollPos = EditorGUILayout.BeginScrollView(_scrollPos);
         if (GUILayout.Button("创建新的UI面板"))
         {
             UIViewCreateWindow.OpenUIViewCreateWindow();
         }
-        
+
         foreach (var prefab in _prefabList)
         {
-            if(_selectedObject == prefab)
+            if (_selectedObject == prefab)
             {
                 GUI.color = Color.cyan;
             }
@@ -39,17 +42,20 @@ public class UIViewManager : EditorWindow
             {
                 GUI.color = Color.white;
             }
+
             GUILayout.BeginHorizontal("frameBox");
             //当前行被点击选中时 该行的样式变为蓝色
-            if (GUILayout.Button(prefab.name, "Label"))
+            if (GUILayout.Button(prefab.name, "Label")&&_selectedObject!=prefab)
             {
+                _prefabToBind.Clear();
                 _selectedObject = prefab;
             }
+
             //让下面这一个ObjectField无法编辑
             GUI.enabled = false;
             EditorGUILayout.ObjectField(prefab, typeof(GameObject), false);
             GUI.enabled = true;
-            
+
             if (!AssetDatabase.LoadAssetAtPath(UIConfig.UIScriptPath + prefab.name + ".cs", typeof(Object)))
             {
                 GUI.color = Color.white;
@@ -95,56 +101,129 @@ public class UIViewManager : EditorWindow
 
             GUI.color = Color.white;
             GUILayout.EndHorizontal();
-            
-           
-            
-            
-            
-            
         }
+
         EditorGUILayout.EndScrollView();
         GUILayout.EndVertical();
-        GUILayout.BeginVertical("控件列表", "window");
+        GUILayout.BeginVertical("控件列表", "window", GUILayout.MaxWidth(300));
         //使用Foldout显示一个列表(类似Hierarchy窗口)，将子物体按照树形结构排列出来，如果子物体有子物体，也会以树形结构排列出来
-        if(_selectedObject!=null){
+        if (_selectedObject != null)
+        {
             DrawChild(_selectedObject.transform);
         }
-        GUILayout.EndVertical();
+        else
+        {
+            EditorGUILayout.HelpBox("请选择一个UI面板", MessageType.Info);
+        }
+
         foreach (var prefab in toRemove)
         {
             _prefabList.Remove(prefab);
         }
 
-        
-        //GUILayout.EndVertical();
+        GUILayout.EndVertical();
+
+        GUILayout.BeginVertical("UI绑定面板", "window");
+        if (GUILayout.Button("生成UI绑定代码"))
+        {
+            if (_selectedObject == null)
+            {
+                EditorUtility.DisplayDialog("警告", "请选择一个UI面板", "确认");
+            }
+        }
+
+        //显示_prefabToBind列表
+        GameObject toRemoveGo = null;
+        foreach (var prefab in _prefabToBind)
+        {
+            GUILayout.BeginHorizontal("frameBox");
+            
+
+            // 获取当前prefab的所有组件
+            var components = prefab.GetComponents<Component>();
+            var componentNames = components.Select(c => c.GetType().Name).ToArray();
+
+            // 如果当前prefab还没有选中的组件，则默认选中第一个组件
+            if (!_selectedComponentIndices.ContainsKey(prefab))
+            {
+                _selectedComponentIndices[prefab] = 0;
+            }
+           
+            // 创建一个下拉框，下拉可以选择当前prefab的所有组件
+            _selectedComponentIndices[prefab] = EditorGUILayout.Popup(_selectedComponentIndices[prefab], componentNames);
+            GUI.enabled = false;
+            EditorGUILayout.ObjectField(prefab, typeof(GameObject), false);
+            GUI.enabled = true;
+            if (GUILayout.Button("-", GUILayout.Width(20), GUILayout.Height(20)))
+            {
+                toRemoveGo = prefab;
+            }
+
+            GUILayout.EndHorizontal();
+        }
+
+
+        _prefabToBind.Remove(toRemoveGo);
+
+        GUILayout.EndVertical();
+
         GUILayout.EndHorizontal();
     }
-private void DrawChild(Transform child)
-{
-    if (child.childCount > 0)
+
+    private void DrawChild(Transform child)
     {
-        if (!_foldouts.ContainsKey(child))
+        if (child.childCount > 0)
         {
-            _foldouts[child] = false;
-        }
-
-        _foldouts[child] = EditorGUILayout.Foldout(_foldouts[child], child.name);
-
-        if (_foldouts[child])
-        {
-            EditorGUI.indentLevel++;
-            for (int i = 0; i < child.childCount; i++)
+            if (!_foldouts.ContainsKey(child))
             {
-                DrawChild(child.GetChild(i));
+                _foldouts[child] = true;
             }
-            EditorGUI.indentLevel--;
+
+            GUILayout.BeginVertical();
+            GUILayout.BeginHorizontal();
+            GUI.enabled = false;
+            EditorGUILayout.ObjectField("", child.gameObject, typeof(GameObject), false);
+            GUI.enabled = true;
+            if (!_prefabToBind.Contains(child.gameObject))
+            {
+                if (GUILayout.Button("+", GUILayout.Width(20), GUILayout.Height(20)))
+                {
+                    _prefabToBind.Add(child.gameObject);
+                }
+            }
+
+            GUILayout.EndHorizontal();
+            _foldouts[child] = EditorGUILayout.Foldout(_foldouts[child], "");
+            GUILayout.EndVertical();
+            if (_foldouts[child])
+            {
+                EditorGUI.indentLevel++;
+                for (int i = 0; i < child.childCount; i++)
+                {
+                    DrawChild(child.GetChild(i));
+                }
+
+                EditorGUI.indentLevel--;
+            }
+        }
+        else
+        {
+            GUILayout.BeginHorizontal();
+            GUI.enabled = false;
+            EditorGUILayout.ObjectField("", child.gameObject, typeof(GameObject), false);
+            GUI.enabled = true;
+            if (!_prefabToBind.Contains(child.gameObject))
+            {
+                if (GUILayout.Button("+", GUILayout.Width(20), GUILayout.Height(20)))
+                {
+                    _prefabToBind.Add(child.gameObject);
+                }
+            }
+
+            GUILayout.EndHorizontal();
         }
     }
-    else
-    {
-        EditorGUILayout.LabelField(child.name);
-    }
-}
+
     private void OnEnable()
     {
         _prefabList.Clear();
@@ -180,6 +259,7 @@ public class UIViewCreateWindow : EditorWindow
             {
                 EditorUtility.DisplayDialog("警告", "UI面板名字不能为空", "确认");
             }
+
             if (AssetDatabase.LoadAssetAtPath(UIConfig.PanelPath + "/" + _panelName + ".prefab", typeof(Object)))
             {
                 EditorUtility.DisplayDialog("警告", "已存在同名UI面板", "确认");
