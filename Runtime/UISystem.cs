@@ -12,7 +12,8 @@ public interface IUISystem
     UIView<TUIData> OpenPanel<T,TUIData>(TUIData uiData, UILayer uiLayer = UILayer.NormalLayer) where T : UIView, new()  where TUIData : class, IUIData;
     UIView<TUIData> OpenViewInScene<T,TUIData>(TUIData uiData) where T : UIView, new() where TUIData : class, IUIData;
     void CloseInSceneLayer(UIView uiView);
-    UIView IsContainInSceneLayer<T>();
+    UIView GetInSceneLayer<T>();
+    bool IsInSceneLayer(UIView uiView);
     void CloseTopPanel(UILayer uiLayer);
     void CloseAll();
     void Reset();
@@ -57,7 +58,7 @@ public class UISystem : IUISystem
     public void OnInit()
     {
         //TODO:通过资源加载系统加载所有Panel的预制体
-        foreach (var newPanel in Resources.LoadAll<GameObject>(UIConfig.PanelPath))
+        foreach (var newPanel in Resources.LoadAll<GameObject>("UIPrefabs"))
         {
             _panelPrefabDict.Add(newPanel.name, newPanel);
         }
@@ -110,7 +111,7 @@ public class UISystem : IUISystem
         return newPanel;
     }
     
-    public  UIView IsContainInSceneLayer<T>()
+    public  UIView GetInSceneLayer<T>()
     {
         foreach (var view in _sceneLayerPanelList)
         {
@@ -121,6 +122,11 @@ public class UISystem : IUISystem
         }
 
         return null;
+    }
+
+    public bool IsInSceneLayer(UIView uiView)
+    {
+        return _sceneLayerPanelList.Contains(uiView);
     }
 
     public void CloseTopPanel(UILayer uiLayer)
