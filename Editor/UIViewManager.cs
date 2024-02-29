@@ -130,6 +130,37 @@ public class UIViewManager : EditorWindow
             {
                 EditorUtility.DisplayDialog("警告", "请选择一个UI面板", "确认");
             }
+            else
+            {
+                string bindingScriptPath = UIConfig.UIScriptPath + _selectedObject.name + ".cs";
+                List<string> bindingComponent = new List<string>();
+                string bindingCode = null;
+                foreach (var bindPfb in _prefabToBind) 
+                {
+                    var components = bindPfb.GetComponents<Component>();
+                    var componentToBind = components[_selectedComponentIndices[bindPfb]];
+                   // var bindPfbName = $"{bindPfb.name}";
+                  //  bindingComponent.Add($"public const string {bindPfb.name} => GetOrAddComponentInChildren<{componentToBind.name}>({bindPfbName});\n");
+            
+                    // bindingCode = string.Join("\n", $"public const string {bindPfb.name} => GetOrAddComponentInChildren<{componentToBind.name}>({bindPfbName});");
+                    
+                    //合并为一个string
+                    bindingCode += $"public const string {bindPfb.name} => GetOrAddComponentInChildren<{componentToBind.name}>(\"{bindPfb.name}\");\n";
+                }
+                Debug.Log(bindingCode);
+//                      string codeContent = $@"public partial class {_selectedObject.name}
+// {{
+//         public const string {}
+// }}";
+                   
+            //生成partial代码
+                    
+               
+               //生成代码文件，类名为toBind的名字,声明
+               // File.WriteAllText(bindingScriptPath, codeContent);
+               // AssetDatabase.Refresh();
+                
+            }
         }
 
         //显示_prefabToBind列表
@@ -278,7 +309,7 @@ public class UIViewCreateWindow : EditorWindow
                     panel.AddComponent<RectTransform>();
                     panel.AddComponent<UIViewController>();
                     PrefabUtility.SaveAsPrefabAsset(panel, prefabPath);
-                    string codeContent = $@"public class {_panelName}:UIView
+                    string codeContent = $@"public partial class {_panelName}:UIView
 {{
     public override void OnOpen()
     {{
