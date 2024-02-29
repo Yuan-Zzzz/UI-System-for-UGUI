@@ -132,8 +132,9 @@ public class UIViewManager : EditorWindow
             }
             else
             {
-                string bindingScriptPath = UIConfig.UIScriptPath + _selectedObject.name + ".cs";
+                string bindingScriptPath = UIConfig.UIBindPath + _selectedObject.name + ".cs";
                 List<string> bindingComponent = new List<string>();
+                string bindingCodeProperty = null;
                 string bindingCode = null;
                 foreach (var bindPfb in _prefabToBind) 
                 {
@@ -145,20 +146,24 @@ public class UIViewManager : EditorWindow
                     // bindingCode = string.Join("\n", $"public const string {bindPfb.name} => GetOrAddComponentInChildren<{componentToBind.name}>({bindPfbName});");
                     
                     //合并为一个string
-                    bindingCode += $"public const string {bindPfb.name} => GetOrAddComponentInChildren<{componentToBind.name}>(\"{bindPfb.name}\");\n";
+                    bindingCodeProperty += $"private {componentToBind.GetType()} {bindPfb.name};\n";
+                    bindingCode += $"{bindPfb.name}= GetOrAddComponentInChildren<{componentToBind.GetType()}>(\"{bindPfb.name}\");\n";
                 }
+                Debug.Log(bindingCodeProperty);
                 Debug.Log(bindingCode);
-//                      string codeContent = $@"public partial class {_selectedObject.name}
-// {{
-//         public const string {}
-// }}";
-                   
-            //生成partial代码
+                     string codeContent = $@"public partial class {_selectedObject.name}
+{{  
+    {bindingCodeProperty}
+private void BindUI()
+{{
+    {bindingCode}
+}}
+}}";
                     
                
-               //生成代码文件，类名为toBind的名字,声明
-               // File.WriteAllText(bindingScriptPath, codeContent);
-               // AssetDatabase.Refresh();
+               
+                File.WriteAllText(bindingScriptPath, codeContent);
+                AssetDatabase.Refresh();
                 
             }
         }
